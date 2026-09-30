@@ -1,6 +1,8 @@
 # 过片 · StylePort
 
-这是一个可以让支持 摄影风格2 的手机（比如 iPhone 17 系列）拍摄的照片也能支持 摄影风格3（目前是 iPhone 18 Pro 系列独占）的小工具。
+这是一个可以让支持 摄影风格2 的手机（比如 iPhone 17 系列）拍摄的照片也能支持 摄影风格3 的小工具。
+
+StylePort is an iOS tool that adds Photographic Styles 3 editing data to compatible HEIC photos captured with Photographic Styles 2, including iPhone 17 photos, and lets you inspect and compare photo metadata.
 
 目前仅在 iPhone 17 Pro Max 上测试。
 
