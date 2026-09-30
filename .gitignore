@@ -1,0 +1,39 @@
+# 构建产物与测试输出
+build/
+Build/
+DerivedData/
+.build/
+*.app/
+*.appex/
+*.xcarchive/
+*.dSYM/
+*.ipa
+*.o
+*.a
+*.dylib
+*.so
+*.swiftmodule
+*.swiftdoc
+*.swiftsourceinfo
+*.xcresult/
+*.log
+
+# 签名资料与本地配置
+*.p12
+*.pfx
+*.p8
+*.pem
+*.key
+*.mobileprovision
+*.provisionprofile
+.env
+.env.*
+!.env.example
+
+# Xcode 用户状态与系统文件
+xcuserdata/
+*.xcuserstate
+.DS_Store
+
+# 已弃用的旧版图标生成脚本；保留在本地，不随源码发布
+/Tools/CreateAppIcon.swift
