@@ -72,4 +72,5 @@ struct ConversionReport: Identifiable {
 struct ExternalPhotoInput: Sendable {
     let url: URL
     let originalFilename: String
+    var pairedVideoURL: URL? = nil
 }

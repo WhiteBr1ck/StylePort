@@ -11,7 +11,7 @@ import UniformTypeIdentifiers
 @MainActor
 @Observable
 final class PhotoImportSession {
-  var pickerItems: [PhotosPickerItem] = []
+  var pickerItems: [PHPickerResult] = []
   private(set) var photos: [SelectedPhoto] = []
   private(set) var loadingProgress: (current: Int, total: Int)?
   private(set) var skipped = 0
@@ -49,9 +49,9 @@ final class PhotoImportSession {
 
   var hasSelection: Bool { !photos.isEmpty || skipped > 0 || !failures.isEmpty }
 
-  func importSelection() {
-    guard !pickerItems.isEmpty, importTask == nil else { return }
-    let items = pickerItems
+  func importSelection(_ items: [PHPickerResult]) {
+    guard !items.isEmpty, importTask == nil else { return }
+    pickerItems = items
     loadingProgress = (0, items.count)
     importTask = Task {
       var imported: [SelectedPhoto] = []
@@ -61,7 +61,7 @@ final class PhotoImportSession {
         guard !Task.isCancelled else { return }
         loadingProgress = (offset + 1, items.count)
         do {
-          imported.append(try await PhotoImporter.load(item))
+          imported.append(try await PhotoImporter.loadNamedPhoto(item, includingLivePhoto: true))
         } catch PhotoImportError.unsupported {
           skippedCount += 1
         } catch is CancellationError {
@@ -104,16 +104,22 @@ nonisolated enum PhotoImportError: LocalizedError {
 
 nonisolated struct PhotoImporter {
   @MainActor
-  static func loadNamedPhoto(_ result: PHPickerResult) async throws -> SelectedPhoto {
+  static func loadNamedPhoto(_ result: PHPickerResult, includingLivePhoto: Bool = false) async throws -> SelectedPhoto {
     if let identifier = result.assetIdentifier,
       PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject != nil
     {
-      let source = try await PhotoAssetSource.load(identifier: identifier)
+      let source = try await PhotoAssetSource.load(identifier: identifier, includingLivePhoto: includingLivePhoto)
       return try await readNamedFile(
-        ExternalPhotoInput(url: source.url, originalFilename: source.originalFilename),
+        ExternalPhotoInput(url: source.url, originalFilename: source.originalFilename,
+                           pairedVideoURL: source.pairedVideoURL),
         assetIdentifier: identifier)
     }
-    let input = try await namedInput(provider: result.itemProvider)
+    let input: ExternalPhotoInput
+    if includingLivePhoto, let liveInput = try await LivePhotoResources.providerInput(result.itemProvider) {
+      input = liveInput
+    } else {
+      input = try await namedInput(provider: result.itemProvider)
+    }
     return try await readNamedFile(input, assetIdentifier: result.assetIdentifier)
   }
 
@@ -183,38 +189,8 @@ nonisolated struct PhotoImporter {
       data: data, contentType: type,
       source: PhotoAssetSource(
         url: input.url, originalFilename: input.originalFilename,
-        assetIdentifier: assetIdentifier ?? ""),
+        assetIdentifier: assetIdentifier ?? "", pairedVideoURL: input.pairedVideoURL),
       assetIdentifier: assetIdentifier)
-  }
-
-  @concurrent
-  static func load(_ item: PhotosPickerItem) async throws -> SelectedPhoto {
-    let source: PhotoAssetSource?
-    if let identifier = item.itemIdentifier,
-      PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject != nil
-    {
-      source = try await PhotoAssetSource.load(identifier: identifier)
-    } else {
-      source = nil
-    }
-    let data: Data
-    if let source {
-      data = try Data(contentsOf: source.url, options: .mappedIfSafe)
-    } else {
-      guard let imported = try await item.loadTransferable(type: Data.self), !imported.isEmpty
-      else {
-        throw PhotoImportError.unavailable
-      }
-      data = imported
-    }
-
-    let contentType = item.supportedContentTypes.first(where: {
-      $0.conforms(to: .image)
-    })
-    guard let contentType else { throw PhotoImportError.unsupported }
-
-    return try decodedPhoto(
-      data: data, contentType: contentType, source: source, assetIdentifier: item.itemIdentifier)
   }
 
   private static func decodedPhoto(
@@ -256,7 +232,8 @@ nonisolated struct PhotoImporter {
       assetIdentifier: assetIdentifier,
       preview: UIImage(cgImage: thumbnail),
       pixelSize: CGSize(width: width, height: height),
-      fileName: fileName
+      fileName: fileName,
+      pairedVideoURL: source?.pairedVideoURL
     )
   }
 }

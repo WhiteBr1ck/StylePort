@@ -73,26 +73,31 @@ final class ShareViewController: UIViewController {
         let summary = await ExternalPhotoConversion.convert(batch.inputs)
         showCompletion(total: batch.total, succeeded: summary.succeeded,
                        failed: summary.failed + batch.failed, skipped: summary.skipped + batch.skipped)
+        if let message = (batch.messages + summary.failureMessages).first {
+            detailLabel.text = "转换完成 · 处理 \(batch.total) 张\n\(message)"
+        }
     }
 
-    private func loadInputs() async -> (inputs: [ExternalPhotoInput], total: Int, skipped: Int, failed: Int) {
+    private func loadInputs() async -> (inputs: [ExternalPhotoInput], total: Int, skipped: Int, failed: Int, messages: [String]) {
         let providers = (extensionContext?.inputItems as? [NSExtensionItem] ?? [])
             .flatMap { $0.attachments ?? [] }
         var results: [ExternalPhotoInput] = []
         var skipped = 0
         var failed = 0
+        var messages: [String] = []
         for provider in providers {
-            guard let typeIdentifier = preferredTypeIdentifier(for: provider) else {
-                skipped += 1
-                continue
-            }
             do {
-                results.append(try await copyItem(from: provider, typeIdentifier: typeIdentifier))
+                if let liveInput = try await LivePhotoResources.providerInput(provider) {
+                    results.append(liveInput)
+                } else if let typeIdentifier = preferredTypeIdentifier(for: provider) {
+                    results.append(try await copyItem(from: provider, typeIdentifier: typeIdentifier))
+                } else { skipped += 1 }
             } catch {
                 failed += 1
+                messages.append(error.localizedDescription)
             }
         }
-        return (results, providers.count, skipped, failed)
+        return (results, providers.count, skipped, failed, messages)
     }
 
     private func preferredTypeIdentifier(for provider: NSItemProvider) -> String? {

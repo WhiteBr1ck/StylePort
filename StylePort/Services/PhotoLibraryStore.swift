@@ -55,7 +55,7 @@ final class PhotoLibraryStore: NSObject, PHPhotoLibraryChangeObserver {
         for (offset, identifier) in identifiers.enumerated() {
             if Task.isCancelled { break }
             do {
-                let source = try await PhotoAssetSource.load(identifier: identifier)
+                let source = try await PhotoAssetSource.load(identifier: identifier, includingLivePhoto: false)
                 eligibility[identifier] = try await PhotoConversionService.eligibility(of: source.url)
             } catch {
                 eligibility[identifier] = .incompatible
@@ -123,47 +123,21 @@ nonisolated struct PhotoAssetSource: Sendable {
     let url: URL
     let originalFilename: String
     let assetIdentifier: String
+    var pairedVideoURL: URL? = nil
 
-    static func load(identifier: String) async throws -> PhotoAssetSource {
+    static func load(identifier: String, includingLivePhoto: Bool = true) async throws -> PhotoAssetSource {
         guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject else {
             throw PhotoImportError.unavailable
         }
         let resources = PHAssetResource.assetResources(for: asset)
-        guard let resource = resources.first(where: { $0.type == .fullSizePhoto })
-            ?? resources.first(where: { $0.type == .photo })
-        else { throw PhotoImportError.unavailable }
-
-        let filename: String
-        if #available(iOS 27.0, *) {
-            filename = resource.filename ?? resource.originalFilename
-        } else {
-            filename = resource.originalFilename
-        }
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("GuoPian-Imports", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let destination = directory.appendingPathComponent(filename)
-        let options = PHAssetResourceRequestOptions()
-        options.isNetworkAccessAllowed = true
-
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            PHAssetResourceManager.default().writeData(
-                for: resource,
-                toFile: destination,
-                options: options
-            ) { error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
-            }
-        }
+        let requiresVideo = includingLivePhoto && (asset.mediaSubtypes.contains(.photoLive)
+            || resources.contains(where: { $0.type == .pairedVideo || $0.type == .fullSizePairedVideo }))
+        let input = try await LivePhotoResources.export(resources, requiresVideo: requiresVideo)
         return PhotoAssetSource(
-            url: destination,
-            originalFilename: filename,
-            assetIdentifier: identifier
+            url: input.url,
+            originalFilename: input.originalFilename,
+            assetIdentifier: identifier,
+            pairedVideoURL: input.pairedVideoURL
         )
     }
 }

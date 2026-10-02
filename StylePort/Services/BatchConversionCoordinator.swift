@@ -50,7 +50,8 @@ final class BatchConversionCoordinator {
                 _ = try await PhotoLibraryWriter.save(
                     outputURL: output,
                     replacingOriginal: replacingOriginal,
-                    assetIdentifier: photo.assetIdentifier
+                    assetIdentifier: photo.assetIdentifier,
+                    pairedVideoURL: photo.pairedVideoURL
                 )
                 succeeded += 1
             } catch {
@@ -103,7 +104,8 @@ final class BatchConversionCoordinator {
                     outputFilename: output.lastPathComponent,
                     replacingOriginal: replacingOriginal,
                     assetIdentifier: source.assetIdentifier,
-                    albumIdentifier: albumIdentifier
+                    albumIdentifier: albumIdentifier,
+                    pairedVideoURL: source.pairedVideoURL
                 )
                 succeeded += 1
             } catch {

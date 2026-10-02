@@ -19,7 +19,8 @@ struct ConvertPhotosIntent: AppIntent {
             return .result(value: message, dialog: IntentDialog(stringLiteral: message))
         }
         let summary = await Self.convertFiles(photos)
-        let message = "处理 \(summary.total) 张：成功 \(summary.succeeded) 张，失败 \(summary.failed) 张，跳过 \(summary.skipped) 张。"
+        let details = summary.failureMessages.first.map { "\n\($0)" } ?? ""
+        let message = "处理 \(summary.total) 张：成功 \(summary.succeeded) 张，失败 \(summary.failed) 张，跳过 \(summary.skipped) 张。" + details
         return .result(value: message, dialog: IntentDialog(stringLiteral: message))
     }
 

@@ -14,6 +14,7 @@ nonisolated enum ExternalPhotoConversion {
                     skipped += 1
                     continue
                 }
+                try await LivePhotoResources.validate(photoURL: input.url, videoURL: input.pairedVideoURL)
                 let output = try await PhotoConversionService().convert(
                     sourceURL: input.url,
                     originalFilename: input.originalFilename
@@ -22,7 +23,8 @@ nonisolated enum ExternalPhotoConversion {
                     outputURL: output,
                     outputFilename: output.lastPathComponent,
                     replacingOriginal: false,
-                    assetIdentifier: nil
+                    assetIdentifier: nil,
+                    pairedVideoURL: input.pairedVideoURL
                 )
                 succeeded += 1
             } catch {

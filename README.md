@@ -14,6 +14,14 @@ StylePort is an iOS tool that adds Photographic Styles 3 editing data to compati
   <img src="docs/screenshots/metadata.jpg" alt="照片元数据" width="220">
 </p>
 
+## 更新日志
+
+### 0.0.2
+
+- 支持转换 Live Photo，并保留实况效果。
+- 修复转换后的 Live Photo 在系统照片中编辑或完成保存时可能导致照片 App 退出的问题。
+- 改进批量转换、分享和快捷指令对 Live Photo 的导入与错误提示。
+
 ## 使用方法
 
 导入照片后点击「转换」，就可以把那些只支持 摄影风格2 的照片，转换成可以支持 摄影风格3 的照片了。

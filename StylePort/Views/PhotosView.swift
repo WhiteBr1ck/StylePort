@@ -5,6 +5,7 @@ struct PhotosView: View {
     @Environment(AppPreferences.self) private var preferences
     @Environment(BatchConversionCoordinator.self) private var conversion
     @Environment(PhotoImportSession.self) private var imports
+    @State private var isShowingPicker = false
     private var photos: [SelectedPhoto] { imports.photos }
     private var loadingProgress: (current: Int, total: Int)? { imports.loadingProgress }
 
@@ -44,6 +45,13 @@ struct PhotosView: View {
             }
         }
         .navigationTitle(text("转换", "Convert"))
+        .sheet(isPresented: $isShowingPicker) {
+            NamedPhotoPicker(selectionLimit: 50) { results in
+                isShowingPicker = false
+                imports.importSelection(results)
+            }
+            .ignoresSafeArea()
+        }
         .toolbar {
             if imports.hasSelection {
                 ToolbarItem(placement: .topBarLeading) {
@@ -61,16 +69,7 @@ struct PhotosView: View {
     }
 
     private func importer<Label: View>(@ViewBuilder label: @Sendable () -> Label) -> some View {
-        @Bindable var imports = imports
-        return PhotosPicker(
-            selection: $imports.pickerItems,
-            maxSelectionCount: 50,
-            selectionBehavior: .ordered,
-            matching: .images,
-            preferredItemEncoding: .current,
-            photoLibrary: .shared(),
-            label: label
-        )
+        Button { isShowingPicker = true } label: { label() }
         .accessibilityLabel(text("导入照片", "Import Photos"))
         .disabled(loadingProgress != nil || conversion.isRunning)
     }

@@ -7,6 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        B91000000000000000000001 /* LivePhotoMovieConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91000000000000000000004; };
+        B91000000000000000000002 /* LivePhotoMovieConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91000000000000000000004; };
+        B91000000000000000000003 /* LivePhotoMovieConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91000000000000000000004; };
+        B92000000000000000000001 /* QuickTimeMetadataTransplanter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92000000000000000000004; };
+        B92000000000000000000002 /* QuickTimeMetadataTransplanter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92000000000000000000004; };
+        B92000000000000000000003 /* QuickTimeMetadataTransplanter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B92000000000000000000004; };
+        B90000000000000000000001 /* LivePhotoResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90000000000000000000004; };
+        B90000000000000000000002 /* LivePhotoResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90000000000000000000004; };
+        B90000000000000000000003 /* LivePhotoResources.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90000000000000000000004; };
 		F30000000000000000000004 /* Action Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000004; };
 		F30000000000000000000003 /* NamedPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000003; };
 		F30000000000000000000001 /* PhotoMetadataReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40000000000000000000001; };
@@ -108,6 +117,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+        B91000000000000000000004 /* LivePhotoMovieConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePhotoMovieConverter.swift; sourceTree = "<group>"; };
+        B92000000000000000000004 /* QuickTimeMetadataTransplanter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickTimeMetadataTransplanter.swift; sourceTree = "<group>"; };
+        B90000000000000000000004 /* LivePhotoResources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePhotoResources.swift; sourceTree = "<group>"; };
 		F40000000000000000000004 /* Action Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = "Action Assets.xcassets"; path = StylePortActionExtension/Assets.xcassets; sourceTree = SOURCE_ROOT; };
 		F40000000000000000000003 /* NamedPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NamedPhotoPicker.swift; sourceTree = "<group>"; };
 		F40000000000000000000001 /* PhotoMetadataReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoMetadataReader.swift; sourceTree = "<group>"; };
@@ -150,6 +162,9 @@
 		002FBA055C6FE3C9B05F91AB /* Core */ = {
 			isa = PBXGroup;
 			children = (
+                B90000000000000000000004 /* LivePhotoResources.swift */,
+                B91000000000000000000004 /* LivePhotoMovieConverter.swift */,
+                B92000000000000000000004 /* QuickTimeMetadataTransplanter.swift */,
 				7252644EB19A9DBDEC00B0CB /* HEIFContainer.swift */,
 				787E8F38C025D813298D432A /* Styles3Template.swift */,
 				876EC10D16898B78CAC73078 /* Styles3Transplanter.swift */,
@@ -453,6 +468,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                B90000000000000000000002 /* LivePhotoResources.swift in Sources */,
+                B91000000000000000000002 /* LivePhotoMovieConverter.swift in Sources */,
+                B92000000000000000000002 /* QuickTimeMetadataTransplanter.swift in Sources */,
 				C10000000000000000000001 /* ShareViewController.swift in Sources */,
 				C10000000000000000000002 /* HEIFContainer.swift in Sources */,
 				C10000000000000000000003 /* Styles3Template.swift in Sources */,
@@ -485,6 +503,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                B90000000000000000000001 /* LivePhotoResources.swift in Sources */,
+                B91000000000000000000001 /* LivePhotoMovieConverter.swift in Sources */,
+                B92000000000000000000001 /* QuickTimeMetadataTransplanter.swift in Sources */,
 				F30000000000000000000003 /* NamedPhotoPicker.swift in Sources */,
 				F30000000000000000000001 /* PhotoMetadataReader.swift in Sources */,
 				F30000000000000000000002 /* PhotoInfoView.swift in Sources */,
@@ -516,6 +537,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                B90000000000000000000003 /* LivePhotoResources.swift in Sources */,
+                B91000000000000000000003 /* LivePhotoMovieConverter.swift in Sources */,
+                B92000000000000000000003 /* QuickTimeMetadataTransplanter.swift in Sources */,
 				C20000000000000000000001 /* ShareViewController.swift in Sources */,
 				C20000000000000000000002 /* HEIFContainer.swift in Sources */,
 				C20000000000000000000003 /* Styles3Template.swift in Sources */,
@@ -561,7 +585,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = StylePortShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -570,7 +594,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.0.1;
+				MARKETING_VERSION = 0.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.styleport.app.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -588,7 +612,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = StylePortShareExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -597,7 +621,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.0.1;
+				MARKETING_VERSION = 0.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.styleport.app.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -646,7 +670,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -666,7 +690,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.0.1;
+				MARKETING_VERSION = 0.0.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -825,7 +849,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -839,7 +863,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.0.1;
+				MARKETING_VERSION = 0.0.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -857,7 +881,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = StylePortActionExtension/Info.plist;
 				ASSETCATALOG_COMPILER_APPICON_NAME = ActionIcon;
@@ -867,7 +891,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.0.1;
+				MARKETING_VERSION = 0.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.styleport.app.action;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -886,7 +910,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = StylePortActionExtension/Info.plist;
 				ASSETCATALOG_COMPILER_APPICON_NAME = ActionIcon;
@@ -896,7 +920,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.0.1;
+				MARKETING_VERSION = 0.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.styleport.app.action;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;

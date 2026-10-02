@@ -3,12 +3,13 @@ import SwiftUI
 
 /// Keep the provider's suggested filename, which PhotosPicker's Data transfer discards.
 struct NamedPhotoPicker: UIViewControllerRepresentable {
+  var selectionLimit = 2
   let onSelection: ([PHPickerResult]) -> Void
 
   func makeUIViewController(context: Context) -> PHPickerViewController {
     var configuration = PHPickerConfiguration(photoLibrary: .shared())
     configuration.filter = .images
-    configuration.selectionLimit = 2
+    configuration.selectionLimit = selectionLimit
     configuration.selection = .ordered
     configuration.preferredAssetRepresentationMode = .current
     let picker = PHPickerViewController(configuration: configuration)

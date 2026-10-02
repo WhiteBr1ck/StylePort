@@ -9,12 +9,14 @@ struct SelectedPhoto: Identifiable {
     let preview: UIImage
     let pixelSize: CGSize
     let fileName: String
+    var pairedVideoURL: URL? = nil
 }
 
 struct ConvertedPhoto: Equatable {
     let outputURL: URL
     let replacedOriginal: Bool
     let filename: String
+    var savedAssetIdentifier: String? = nil
 }
 
 struct BatchConversionResult: Equatable {

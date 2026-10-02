@@ -35,7 +35,6 @@ struct RootView: View {
             .tag(Tab.settings)
         }
         .environment(imports)
-        .onChange(of: imports.pickerItems) { _, _ in imports.importSelection() }
         .sheet(item: $conversion.report, onDismiss: conversion.reset) { report in
             BatchResultView(summary: report.summary)
         }

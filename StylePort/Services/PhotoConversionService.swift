@@ -26,6 +26,8 @@ nonisolated struct PhotoConversionService: Sendable {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let outputURL = directory.appendingPathComponent(Self.convertedFilename(from: originalFilename))
         try converted.write(to: outputURL, options: .atomic)
+        guard LivePhotoResources.photoIdentifier(at: sourceURL) == LivePhotoResources.photoIdentifier(at: outputURL)
+        else { throw LivePhotoError.identifierChanged }
         return outputURL
     }
 
