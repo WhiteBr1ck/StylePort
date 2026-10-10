@@ -12,7 +12,7 @@ nonisolated enum PhotoConversionError: LocalizedError {
 nonisolated struct PhotoConversionService: Sendable {
     @concurrent
     func convert(sourceURL: URL, originalFilename: String? = nil) async throws -> URL {
-        let source = try Data(contentsOf: sourceURL, options: .mappedIfSafe)
+        let source = try EmbeddedLivePhoto.photoData(in: Data(contentsOf: sourceURL, options: .mappedIfSafe))
         let template = try Styles3Template.bundled()
         let converted = try Styles3Transplanter().convert(source: source, template: template)
         guard let imageSource = CGImageSourceCreateWithData(converted as CFData, nil),
@@ -33,7 +33,7 @@ nonisolated struct PhotoConversionService: Sendable {
 
     @concurrent
     static func eligibility(of sourceURL: URL) async throws -> PhotoEligibility {
-        let source = try Data(contentsOf: sourceURL, options: .mappedIfSafe)
+        let source = try EmbeddedLivePhoto.photoData(in: Data(contentsOf: sourceURL, options: .mappedIfSafe))
         if source.range(of: Data("tag:apple.com,2026:photo:metadata:texture_styles".utf8)) != nil {
             return .alreadyConverted
         }

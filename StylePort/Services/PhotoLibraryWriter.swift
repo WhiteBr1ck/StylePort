@@ -25,13 +25,18 @@ nonisolated enum PhotoLibraryWriter {
         replacingOriginal: Bool,
         assetIdentifier: String?,
         albumIdentifier: String? = nil,
-        pairedVideoURL: URL? = nil
+        pairedVideoURL: URL? = nil,
+        edits: PhotoEditResources? = nil
     ) async throws -> ConvertedPhoto {
         let outputVideoURL: URL?
         if let pairedVideoURL {
             outputVideoURL = try await LivePhotoMovieConverter.convert(videoURL: pairedVideoURL, photoURL: outputURL)
         } else { outputVideoURL = nil }
         try await LivePhotoResources.validate(photoURL: outputURL, videoURL: outputVideoURL)
+        if let edits {
+            try await LivePhotoResources.validate(photoURL: edits.renderedPhotoURL,
+                                                 videoURL: edits.renderedVideoURL)
+        }
         let current = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         let status = current == .notDetermined
             ? await PHPhotoLibrary.requestAuthorization(for: .readWrite)
@@ -83,6 +88,13 @@ nonisolated enum PhotoLibraryWriter {
                         .deletingPathExtension().lastPathComponent + ".MOV"
                     request.addResource(with: .pairedVideo, fileURL: outputVideoURL, options: videoOptions)
                 }
+                if let edits {
+                    request.addResource(with: .adjustmentData, fileURL: edits.adjustmentDataURL, options: nil)
+                    request.addResource(with: .fullSizePhoto, fileURL: edits.renderedPhotoURL, options: nil)
+                    if let video = edits.renderedVideoURL {
+                        request.addResource(with: .fullSizePairedVideo, fileURL: video, options: nil)
+                    }
+                }
                 createdIdentifier.withLock { $0 = request.placeholderForCreatedAsset?.localIdentifier }
 
                 if let targetAlbum,
@@ -102,10 +114,17 @@ nonisolated enum PhotoLibraryWriter {
         guard let identifier = createdIdentifier.withLock({ $0 }),
               let created = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
         else { throw PhotoLibraryError.saveFailed }
+        let savedResourceTypes = Set(PHAssetResource.assetResources(for: created).map(\.type))
         if pairedVideoURL != nil {
             guard created.mediaSubtypes.contains(.photoLive),
-                  PHAssetResource.assetResources(for: created).contains(where: { $0.type == .pairedVideo })
+                  savedResourceTypes.contains(.pairedVideo)
             else { throw LivePhotoError.savedAsStill }
+        }
+        if let edits {
+            guard savedResourceTypes.contains(.adjustmentData),
+                  savedResourceTypes.contains(.fullSizePhoto),
+                  edits.renderedVideoURL == nil || savedResourceTypes.contains(.fullSizePairedVideo)
+            else { throw PhotoLibraryError.saveFailed }
         }
         // Replacement is a separate transaction, only after the newly saved asset is verified.
         if let originalAsset {

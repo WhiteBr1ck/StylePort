@@ -111,6 +111,7 @@ nonisolated enum PhotoMetadataReader {
   }
 
   static func readStyleContainer(_ data: Data) throws -> PhotoStyleMetadata {
+    let data = try EmbeddedLivePhoto.photoData(in: data)
     let top = try HEIFCodec.boxes(in: data, from: 0, to: data.count)
     guard let meta = top.first(where: { $0.type == "meta" }) else {
       throw CocoaError(.fileReadCorruptFile)

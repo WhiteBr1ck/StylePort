@@ -105,13 +105,20 @@ nonisolated enum PhotoImportError: LocalizedError {
 nonisolated struct PhotoImporter {
   @MainActor
   static func loadNamedPhoto(_ result: PHPickerResult, includingLivePhoto: Bool = false) async throws -> SelectedPhoto {
+    // PHPicker can return only a flattened current render without library access.
+    // Conversion needs permission to retrieve the camera original and native edits.
+    if includingLivePhoto, result.assetIdentifier != nil,
+       PHPhotoLibrary.authorizationStatus(for: .readWrite) == .notDetermined {
+      _ = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+    }
     if let identifier = result.assetIdentifier,
       PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject != nil
     {
-      let source = try await PhotoAssetSource.load(identifier: identifier, includingLivePhoto: includingLivePhoto)
+      let source = try await PhotoAssetSource.load(identifier: identifier,
+        includingLivePhoto: includingLivePhoto, forConversion: includingLivePhoto)
       return try await readNamedFile(
         ExternalPhotoInput(url: source.url, originalFilename: source.originalFilename,
-                           pairedVideoURL: source.pairedVideoURL),
+                           pairedVideoURL: source.pairedVideoURL, edits: source.edits),
         assetIdentifier: identifier)
     }
     let input: ExternalPhotoInput
@@ -180,7 +187,8 @@ nonisolated struct PhotoImporter {
     -> SelectedPhoto
   {
     try Task.checkCancellation()
-    let data = try Data(contentsOf: input.url, options: .mappedIfSafe)
+    let input = try await LivePhotoResources.normalizedInput(input)
+    let data = try Data(contentsOf: input.edits?.renderedPhotoURL ?? input.url, options: .mappedIfSafe)
     guard let source = CGImageSourceCreateWithData(data as CFData, nil),
       let identifier = CGImageSourceGetType(source),
       let type = UTType(identifier as String)
@@ -189,7 +197,8 @@ nonisolated struct PhotoImporter {
       data: data, contentType: type,
       source: PhotoAssetSource(
         url: input.url, originalFilename: input.originalFilename,
-        assetIdentifier: assetIdentifier ?? "", pairedVideoURL: input.pairedVideoURL),
+        assetIdentifier: assetIdentifier ?? "", pairedVideoURL: input.pairedVideoURL,
+        edits: input.edits),
       assetIdentifier: assetIdentifier)
   }
 
@@ -233,7 +242,8 @@ nonisolated struct PhotoImporter {
       preview: UIImage(cgImage: thumbnail),
       pixelSize: CGSize(width: width, height: height),
       fileName: fileName,
-      pairedVideoURL: source?.pairedVideoURL
+      pairedVideoURL: source?.pairedVideoURL,
+      edits: source?.edits
     )
   }
 }

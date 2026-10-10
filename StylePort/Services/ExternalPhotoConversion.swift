@@ -9,6 +9,7 @@ nonisolated enum ExternalPhotoConversion {
 
         for input in inputs {
             do {
+                let input = try await LivePhotoResources.normalizedInput(input)
                 let eligibility = try await PhotoConversionService.eligibility(of: input.url)
                 guard eligibility == .convertible else {
                     skipped += 1
@@ -24,7 +25,8 @@ nonisolated enum ExternalPhotoConversion {
                     outputFilename: output.lastPathComponent,
                     replacingOriginal: false,
                     assetIdentifier: nil,
-                    pairedVideoURL: input.pairedVideoURL
+                    pairedVideoURL: input.pairedVideoURL,
+                    edits: input.edits
                 )
                 succeeded += 1
             } catch {

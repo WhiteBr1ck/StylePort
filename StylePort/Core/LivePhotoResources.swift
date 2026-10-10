@@ -5,6 +5,14 @@ import ImageIO
 import os
 import UIKit
 
+/// The native Photos edit recipe and its matching rendered resources.
+/// Keep them separate from the unadjusted photo/video used for Styles conversion.
+nonisolated struct PhotoEditResources: Sendable {
+    let adjustmentDataURL: URL
+    let renderedPhotoURL: URL
+    var renderedVideoURL: URL? = nil
+}
+
 nonisolated enum LivePhotoError: LocalizedError {
     case missingVideo
     case invalidPair
@@ -25,9 +33,39 @@ nonisolated enum LivePhotoError: LocalizedError {
 /// Export the complete source pair. A full-size edited photo must use its full-size movie,
 /// never an unrelated original movie; otherwise fall back to the complete original pair.
 nonisolated enum LivePhotoResources {
-    static func resourceIndices(types: [PHAssetResourceType], requiresVideo: Bool) throws
+    @concurrent
+    static func normalizedInput(_ input: ExternalPhotoInput) async throws -> ExternalPhotoInput {
+        let data = try Data(contentsOf: input.url, options: .mappedIfSafe)
+        guard let embedded = try EmbeddedLivePhoto.split(data) else { return input }
+        try Task.checkCancellation()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GuoPian-EmbeddedLive", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let photo = directory.appendingPathComponent("Photo.HEIC")
+        let movie = directory.appendingPathComponent("Photo.MOV")
+        try embedded.photo.write(to: photo, options: .atomic)
+        try embedded.movie.write(to: movie, options: .atomic)
+        // Validate the embedded pair even if Photos supplied an additional movie.
+        // No pixels, audio, timing, or identifiers are rewritten during extraction.
+        try await validate(photoURL: photo, videoURL: movie)
+        if let existing = input.pairedVideoURL {
+            try await validate(photoURL: photo, videoURL: existing)
+        }
+        return ExternalPhotoInput(url: photo, originalFilename: input.originalFilename,
+                                  pairedVideoURL: input.pairedVideoURL ?? movie, edits: input.edits)
+    }
+
+    static func resourceIndices(types: [PHAssetResourceType], requiresVideo: Bool,
+                                preferOriginal: Bool = false) throws
         -> (photo: Int, video: Int?)
     {
+        if preferOriginal {
+            guard let photo = types.firstIndex(of: .photo) else { throw LivePhotoError.invalidPair }
+            if !requiresVideo { return (photo, nil) }
+            guard let video = types.firstIndex(of: .pairedVideo) else { throw LivePhotoError.missingVideo }
+            return (photo, video)
+        }
         if !requiresVideo {
             guard let photo = types.firstIndex(of: .fullSizePhoto) ?? types.firstIndex(of: .photo)
             else { throw LivePhotoError.invalidPair }
@@ -40,10 +78,12 @@ nonisolated enum LivePhotoResources {
         throw LivePhotoError.missingVideo
     }
 
-    static func export(_ resources: [PHAssetResource], requiresVideo: Bool) async throws
+    static func export(_ resources: [PHAssetResource], requiresVideo: Bool,
+                       preferOriginal: Bool = false) async throws
         -> ExternalPhotoInput
     {
-        let indices = try resourceIndices(types: resources.map(\.type), requiresVideo: requiresVideo)
+        let indices = try resourceIndices(types: resources.map(\.type), requiresVideo: requiresVideo,
+                                         preferOriginal: preferOriginal)
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("GuoPian-Resources", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -56,6 +96,54 @@ nonisolated enum LivePhotoResources {
         } else { videoURL = nil }
         return ExternalPhotoInput(url: photoURL, originalFilename: photoURL.lastPathComponent,
                                   pairedVideoURL: videoURL)
+    }
+
+    static func exportEdits(_ resources: [PHAssetResource], requiresVideo: Bool) async throws
+        -> PhotoEditResources?
+    {
+        guard let adjustment = resources.first(where: { $0.type == .adjustmentData }),
+              let photo = resources.first(where: { $0.type == .fullSizePhoto }) else { return nil }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GuoPian-Edits", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let adjustmentURL = try await write(adjustment, directory: directory)
+        let recipe = try PropertyListSerialization.propertyList(
+            from: Data(contentsOf: adjustmentURL), format: nil) as? [String: Any]
+        // The recipe is replayed on the unadjusted original. Recipes that refer
+        // to an intermediate adjustment base must not be attached to that file.
+        guard recipe?["adjustmentBaseVersion"] as? Int == 0 else {
+            throw HEIFError.unsupported("The photo's edit recipe requires a different adjustment base.")
+        }
+        let photoURL = try await write(photo, directory: directory)
+        let videoURL: URL?
+        if requiresVideo {
+            guard let video = resources.first(where: { $0.type == .fullSizePairedVideo })
+            else { throw LivePhotoError.missingVideo }
+            videoURL = try await write(video, directory: directory)
+            try await validate(photoURL: photoURL, videoURL: videoURL)
+        } else { videoURL = nil }
+        return PhotoEditResources(adjustmentDataURL: adjustmentURL,
+                                  renderedPhotoURL: photoURL, renderedVideoURL: videoURL)
+    }
+
+    static func conversionInput(_ resources: [PHAssetResource], requiresVideo: Bool) async throws
+        -> ExternalPhotoInput
+    {
+        let current = try await normalizedInput(export(resources, requiresVideo: requiresVideo))
+        guard resources.contains(where: { $0.type == .fullSizePhoto }),
+              resources.contains(where: { $0.type == .photo }),
+              try await PhotoConversionService.eligibility(of: current.url) == .incompatible
+        else { return current }
+        // A Photos render can omit the Styles data. Keep the native edit recipe
+        // and matching rendered pair while converting the intact original pair.
+        var original = try await normalizedInput(export(resources, requiresVideo: requiresVideo,
+                                                        preferOriginal: true))
+        guard try await PhotoConversionService.eligibility(of: original.url) != .incompatible,
+              let edits = try await exportEdits(resources, requiresVideo: requiresVideo)
+        else { return current }
+        original.edits = edits
+        return original
     }
 
     private static func write(_ resource: PHAssetResource, directory: URL) async throws -> URL {
@@ -84,7 +172,7 @@ nonisolated enum LivePhotoResources {
                 else { continuation.resume(throwing: LivePhotoError.missingVideo) }
             }
         }
-        return try await export(PHAssetResource.assetResources(for: livePhoto), requiresVideo: true)
+        return try await conversionInput(PHAssetResource.assetResources(for: livePhoto), requiresVideo: true)
     }
 
     static func photoIdentifier(at url: URL) -> String? {

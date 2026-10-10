@@ -124,20 +124,28 @@ nonisolated struct PhotoAssetSource: Sendable {
     let originalFilename: String
     let assetIdentifier: String
     var pairedVideoURL: URL? = nil
+    var edits: PhotoEditResources? = nil
 
-    static func load(identifier: String, includingLivePhoto: Bool = true) async throws -> PhotoAssetSource {
+    static func load(identifier: String, includingLivePhoto: Bool = true,
+                     forConversion: Bool = true) async throws -> PhotoAssetSource {
         guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject else {
             throw PhotoImportError.unavailable
         }
         let resources = PHAssetResource.assetResources(for: asset)
         let requiresVideo = includingLivePhoto && (asset.mediaSubtypes.contains(.photoLive)
             || resources.contains(where: { $0.type == .pairedVideo || $0.type == .fullSizePairedVideo }))
-        let input = try await LivePhotoResources.export(resources, requiresVideo: requiresVideo)
+        let input = if forConversion {
+            try await LivePhotoResources.conversionInput(resources, requiresVideo: requiresVideo)
+        } else {
+            try await LivePhotoResources.normalizedInput(
+                LivePhotoResources.export(resources, requiresVideo: requiresVideo))
+        }
         return PhotoAssetSource(
             url: input.url,
             originalFilename: input.originalFilename,
             assetIdentifier: identifier,
-            pairedVideoURL: input.pairedVideoURL
+            pairedVideoURL: input.pairedVideoURL,
+            edits: input.edits
         )
     }
 }

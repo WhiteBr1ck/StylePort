@@ -10,6 +10,7 @@ struct SelectedPhoto: Identifiable {
     let pixelSize: CGSize
     let fileName: String
     var pairedVideoURL: URL? = nil
+    var edits: PhotoEditResources? = nil
 }
 
 struct ConvertedPhoto: Equatable {

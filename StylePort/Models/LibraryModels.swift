@@ -73,4 +73,5 @@ struct ExternalPhotoInput: Sendable {
     let url: URL
     let originalFilename: String
     var pairedVideoURL: URL? = nil
+    var edits: PhotoEditResources? = nil
 }

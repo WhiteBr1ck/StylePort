@@ -10,6 +10,109 @@ import ImageIO
 
 @Suite("StylePort basics")
 struct StylePortTests {
+    @Test("Embedded Live Photo extraction preserves both resources byte for byte")
+    func embeddedLivePhotoResources() throws {
+        let photo = try syntheticContainer(types: ["ftyp", "meta", "mdat"])
+        let movie = try syntheticContainer(types: ["ftyp", "mdat", "moov"])
+        let packaged = packageLivePhoto(photo: photo, movie: movie)
+        let split = try #require(try EmbeddedLivePhoto.split(packaged))
+        #expect(split.photo == photo)
+        #expect(split.movie == movie)
+        #expect(try EmbeddedLivePhoto.photoData(in: packaged) == photo)
+        #expect(try EmbeddedLivePhoto.split(photo) == nil)
+    }
+
+    @Test("Invalid embedded Live Photo lengths and resources are rejected")
+    func invalidEmbeddedLivePhoto() throws {
+        let photo = try syntheticContainer(types: ["ftyp", "meta", "mdat"])
+        let movie = try syntheticContainer(types: ["ftyp", "mdat", "moov"])
+        let packaged = packageLivePhoto(photo: photo, movie: movie)
+        var invalidLength = packaged
+        invalidLength.replaceSubrange(invalidLength.count - 4..<invalidLength.count, with: Data(repeating: 0xff, count: 4))
+        var invalidHeader = packaged
+        invalidHeader[photo.count + 8] = 1
+        let missingMovieHeader = packageLivePhoto(photo: photo,
+            movie: try syntheticContainer(types: ["mdat", "moov"]))
+        for invalid in [invalidLength, invalidHeader, missingMovieHeader] {
+            #expect(throws: HEIFError.self) { try EmbeddedLivePhoto.split(invalid) }
+        }
+        // An ordinary ISO UUID box must not be mistaken for the transfer wrapper.
+        var ordinary = photo
+        ordinary.append(try HEIFCodec.makeBox(type: "uuid", payload: Data(repeating: 0, count: 16)))
+        #expect(try EmbeddedLivePhoto.split(ordinary) == nil)
+    }
+
+    @Test("Movie-only style markers do not make a still photo convertible")
+    func embeddedMovieEligibility() async throws {
+        let photo = try syntheticContainer(types: ["ftyp", "meta", "mdat"])
+        var movie = try syntheticContainer(types: ["ftyp", "mdat", "moov"])
+        movie.append(try HEIFCodec.makeBox(type: "free", payload:
+            Data("tag:apple.com,2023:photo:metadata:styles".utf8)))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let file = directory.appendingPathComponent("Packaged.HEIC")
+        try packageLivePhoto(photo: photo, movie: movie).write(to: file)
+        #expect(try await PhotoConversionService.eligibility(of: file) == .incompatible)
+    }
+
+    private func syntheticContainer(types: [String]) throws -> Data {
+        try types.reduce(into: Data()) { result, type in
+            result.append(try HEIFCodec.makeBox(type: type, payload: Data()))
+        }
+    }
+
+    private func packageLivePhoto(photo: Data, movie: Data) -> Data {
+        func little(_ value: UInt32) -> Data {
+            Data((0..<4).map { UInt8(truncatingIfNeeded: value >> ($0 * 8)) })
+        }
+        var result = photo
+        result.append(little(UInt32(movie.count + 16)))
+        result.append(Data("uuid".utf8))
+        result.append(Data(repeating: 0, count: 8))
+        result.append(movie)
+        result.append(Data("livp".utf8))
+        result.append(Data([2, 17, 0, 0]))
+        result.append(little(UInt32(movie.count)))
+        return result
+    }
+
+    // Opt-in only: local fixtures stay outside the repository and release app.
+    @Test("Packaged HEIC import, conversion and Live Photo save round trip",
+          .enabled(if: ProcessInfo.processInfo.environment["STYLEPORT_EMBEDDED_FIXTURE_DIR"] != nil))
+    @MainActor
+    func embeddedLivePhotoRoundTrip() async throws {
+        let path = try #require(ProcessInfo.processInfo.environment["STYLEPORT_EMBEDDED_FIXTURE_DIR"])
+        let root = path == "app-tmp" ? FileManager.default.temporaryDirectory.appendingPathComponent("EmbeddedFixtures")
+            : URL(fileURLWithPath: path)
+        let source = root.appendingPathComponent("IMG_9505_20261009.HEIC")
+        let bytes = try Data(contentsOf: source)
+        let resources = try #require(try EmbeddedLivePhoto.split(bytes))
+        let originalStyle = try PhotoMetadataReader.readStyleContainer(bytes)
+        #expect(originalStyle.hasStyles && !originalStyle.hasTexture)
+        let selected = try await PhotoImporter.readNamedFile(
+            ExternalPhotoInput(url: source, originalFilename: source.lastPathComponent), assetIdentifier: nil)
+        let movie = try #require(selected.pairedVideoURL)
+        #expect(try Data(contentsOf: movie) == resources.movie)
+        #expect(selected.fileName == source.lastPathComponent)
+        #expect(try await PhotoConversionService.eligibility(of: selected.sourceURL) == .convertible)
+        let output = try await PhotoConversionService().convert(sourceURL: selected.sourceURL, originalFilename: selected.fileName)
+        let outputStyle = try PhotoMetadataReader.readStyleContainer(Data(contentsOf: output))
+        #expect(outputStyle.hasTexture)
+        #expect(outputStyle.primaryImageDigest == originalStyle.primaryImageDigest)
+        let saved = try await PhotoLibraryWriter.save(outputURL: output, replacingOriginal: false,
+            assetIdentifier: nil, pairedVideoURL: movie)
+        let imported = try await PhotoAssetSource.load(identifier: try #require(saved.savedAssetIdentifier))
+        try await expectTextureTrack(in: try #require(imported.pairedVideoURL))
+        try expectOriginalTracksUnchanged(source: resources.movie, output: Data(contentsOf: try #require(imported.pairedVideoURL)))
+        #expect(try await PhotoConversionService.eligibility(of: imported.url) == .alreadyConverted)
+        let noStyles = root.appendingPathComponent("IMG_9507_20261009.HEIC")
+        let noStylesPhoto = try await PhotoImporter.readNamedFile(
+            ExternalPhotoInput(url: noStyles, originalFilename: noStyles.lastPathComponent), assetIdentifier: nil)
+        #expect(noStylesPhoto.pairedVideoURL != nil)
+        #expect(try await PhotoConversionService.eligibility(of: noStylesPhoto.sourceURL) == .incompatible)
+        #expect(try Data(contentsOf: source) == bytes)
+    }
+
     @Test("Live Photo resources never mix edited photos with original videos")
     func liveResourceSelection() throws {
         let edited = try LivePhotoResources.resourceIndices(
@@ -37,6 +140,120 @@ struct StylePortTests {
         #expect(throws: LivePhotoError.invalidPair) {
             try LivePhotoResources.requireMatchingIdentifiers(photo: nil, video: "A")
         }
+    }
+
+    @Test("Styles conversion can select an intact original pair without mixing edit resources")
+    func originalResourceSelection() throws {
+        let types: [PHAssetResourceType] = [.fullSizePhoto, .fullSizePairedVideo, .photo, .pairedVideo]
+        let original = try LivePhotoResources.resourceIndices(types: types, requiresVideo: true,
+                                                               preferOriginal: true)
+        #expect(original.photo == 2 && original.video == 3)
+        let still = try LivePhotoResources.resourceIndices(types: types, requiresVideo: false,
+                                                            preferOriginal: true)
+        #expect(still.photo == 2 && still.video == nil)
+        #expect(throws: LivePhotoError.missingVideo) {
+            try LivePhotoResources.resourceIndices(types: [.photo, .fullSizePairedVideo],
+                                                    requiresVideo: true, preferOriginal: true)
+        }
+        #expect(throws: LivePhotoError.invalidPair) {
+            try LivePhotoResources.resourceIndices(types: [.fullSizePhoto, .fullSizePairedVideo],
+                                                    requiresVideo: true, preferOriginal: true)
+        }
+    }
+
+    // Real camera originals, renders and native recipes remain local and opt-in.
+    @Test("Edited Styles 2 conversion retains native edits, appearance and both Live pairs",
+          .enabled(if: ProcessInfo.processInfo.environment["STYLEPORT_EDITED_FIXTURE_DIR"] != nil))
+    @MainActor
+    func editedStylesRoundTrip() async throws {
+        let path = try #require(ProcessInfo.processInfo.environment["STYLEPORT_EDITED_FIXTURE_DIR"])
+        let root = path == "app-tmp" ? FileManager.default.temporaryDirectory.appendingPathComponent("EditedStylesFixtures")
+            : URL(fileURLWithPath: path)
+        let photo = root.appendingPathComponent("1-IMG_9238.HEIC")
+        let movie = root.appendingPathComponent("9-IMG_9238.MOV")
+        let edits = PhotoEditResources(adjustmentDataURL: root.appendingPathComponent("7-Adjustments.plist"),
+            renderedPhotoURL: root.appendingPathComponent("5-FullSizeRender.heic"),
+            renderedVideoURL: root.appendingPathComponent("10-FullSizeRender.mov"))
+        let originalBytes = try Data(contentsOf: photo)
+        let originalMovie = try Data(contentsOf: movie)
+        let renderedBytes = try Data(contentsOf: edits.renderedPhotoURL)
+        let renderedMovie = try Data(contentsOf: try #require(edits.renderedVideoURL))
+        let recipeBytes = try Data(contentsOf: edits.adjustmentDataURL)
+        #expect(try await PhotoConversionService.eligibility(of: photo) == .convertible)
+        #expect(try await PhotoConversionService.eligibility(of: edits.renderedPhotoURL) == .incompatible)
+        let fixture = try await PhotoLibraryWriter.save(outputURL: photo, outputFilename: "IMG_9238.HEIC",
+            replacingOriginal: false, assetIdentifier: nil, pairedVideoURL: movie, edits: edits)
+        let fixtureID = try #require(fixture.savedAssetIdentifier)
+        let inspected = try await PhotoAssetSource.load(identifier: fixtureID, forConversion: false)
+        #expect(try Data(contentsOf: inspected.url) == renderedBytes)
+        #expect(inspected.edits == nil)
+        let source = try await PhotoAssetSource.load(identifier: fixtureID)
+        let sourceEdits = try #require(source.edits)
+        #expect(source.originalFilename == "IMG_9238.HEIC")
+        #expect(try Data(contentsOf: source.url) == originalBytes)
+        #expect(try Data(contentsOf: try #require(source.pairedVideoURL)) == originalMovie)
+        #expect(try Data(contentsOf: sourceEdits.renderedPhotoURL) == renderedBytes)
+        try expectNativeRecipeUnchanged(source: recipeBytes,
+            output: Data(contentsOf: sourceEdits.adjustmentDataURL))
+        let selected = try await PhotoImporter.readNamedFile(ExternalPhotoInput(url: source.url,
+            originalFilename: source.originalFilename, pairedVideoURL: source.pairedVideoURL, edits: source.edits),
+            assetIdentifier: fixtureID)
+        #expect(selected.edits != nil)
+        #expect(try await PhotoConversionService.eligibility(of: selected.sourceURL) == .convertible)
+        let output = try await PhotoConversionService().convert(sourceURL: selected.sourceURL,
+                                                               originalFilename: selected.fileName)
+        let oldStyle = try PhotoMetadataReader.readStyleContainer(originalBytes)
+        let newStyle = try PhotoMetadataReader.readStyleContainer(Data(contentsOf: output))
+        #expect(newStyle.hasStyles && newStyle.hasTexture)
+        #expect(oldStyle.primaryImageDigest == newStyle.primaryImageDigest)
+        let saved = try await PhotoLibraryWriter.save(outputURL: output, replacingOriginal: false,
+            assetIdentifier: fixtureID, pairedVideoURL: selected.pairedVideoURL, edits: selected.edits)
+        let savedID = try #require(saved.savedAssetIdentifier)
+        let converted = try await PhotoAssetSource.load(identifier: savedID)
+        #expect(try await PhotoConversionService.eligibility(of: converted.url) == .alreadyConverted)
+        let convertedEdits = try #require(converted.edits)
+        #expect(try Data(contentsOf: convertedEdits.renderedPhotoURL) == renderedBytes)
+        #expect(try Data(contentsOf: try #require(convertedEdits.renderedVideoURL)) == renderedMovie)
+        try expectNativeRecipeUnchanged(source: recipeBytes,
+            output: Data(contentsOf: convertedEdits.adjustmentDataURL))
+        try await expectTextureTrack(in: try #require(converted.pairedVideoURL))
+        try expectOriginalTracksUnchanged(source: originalMovie,
+                                         output: Data(contentsOf: try #require(converted.pairedVideoURL)))
+        let asset = try #require(PHAsset.fetchAssets(withLocalIdentifiers: [savedID], options: nil).firstObject)
+        #expect(asset.mediaSubtypes.contains(.photoLive))
+        let editingOptions = PHContentEditingInputRequestOptions()
+        editingOptions.canHandleAdjustmentData = { _ in true }
+        let adjustment: (String, String, Data)? = try await withCheckedThrowingContinuation { continuation in
+            asset.requestContentEditingInput(with: editingOptions) { input, _ in
+                guard let input else { continuation.resume(throwing: PhotoImportError.unavailable); return }
+                continuation.resume(returning: input.adjustmentData.map {
+                    ($0.formatIdentifier, $0.formatVersion, $0.data)
+                })
+            }
+        }
+        let actualRecipe = try #require(adjustment)
+        let recipe = try #require(try PropertyListSerialization.propertyList(from: recipeBytes, format: nil)
+                                 as? [String: Any])
+        #expect(actualRecipe.0 == recipe["adjustmentFormatIdentifier"] as? String)
+        #expect(actualRecipe.1 == recipe["adjustmentFormatVersion"] as? String)
+        #expect(actualRecipe.2 == recipe["adjustmentData"] as? Data)
+        #expect(try Data(contentsOf: photo) == originalBytes)
+        let retained = try await PhotoAssetSource.load(identifier: fixtureID)
+        #expect(try Data(contentsOf: retained.url) == originalBytes)
+    }
+
+    private func expectNativeRecipeUnchanged(source: Data, output: Data) throws {
+        let before = try #require(try PropertyListSerialization.propertyList(from: source, format: nil)
+                                  as? [String: Any])
+        let after = try #require(try PropertyListSerialization.propertyList(from: output, format: nil)
+                                 as? [String: Any])
+        // PhotoKit reserializes the wrapper and updates its bookkeeping. The
+        // editor identifier/version and actual native recipe must be identical.
+        #expect(before["adjustmentData"] as? Data == after["adjustmentData"] as? Data)
+        for key in ["adjustmentFormatIdentifier", "adjustmentFormatVersion", "adjustmentEditorBundleID"] {
+            #expect(before[key] as? String == after[key] as? String)
+        }
+        #expect(before["adjustmentBaseVersion"] as? Int == after["adjustmentBaseVersion"] as? Int)
     }
 
     @Test("A Live Photo still without its movie cannot be saved")

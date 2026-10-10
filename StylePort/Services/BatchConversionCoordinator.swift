@@ -51,7 +51,8 @@ final class BatchConversionCoordinator {
                     outputURL: output,
                     replacingOriginal: replacingOriginal,
                     assetIdentifier: photo.assetIdentifier,
-                    pairedVideoURL: photo.pairedVideoURL
+                    pairedVideoURL: photo.pairedVideoURL,
+                    edits: photo.edits
                 )
                 succeeded += 1
             } catch {
@@ -105,7 +106,8 @@ final class BatchConversionCoordinator {
                     replacingOriginal: replacingOriginal,
                     assetIdentifier: source.assetIdentifier,
                     albumIdentifier: albumIdentifier,
-                    pairedVideoURL: source.pairedVideoURL
+                    pairedVideoURL: source.pairedVideoURL,
+                    edits: source.edits
                 )
                 succeeded += 1
             } catch {
