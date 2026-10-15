@@ -571,6 +571,68 @@ struct StylePortTests {
         return url
     }
 
+    @Test("Resource filenames use the new getter only when it exists and has a value")
+    @available(iOS 27.0, *)
+    func resourceFilenameCompatibility() {
+        let supported = FilenameResourceStub(supportsFilename: true, filename: "Current.HEIC")
+        #expect(LivePhotoResources.filename(for: supported) == "Current.HEIC")
+        #expect(supported.filenameReads == 1)
+        #expect(supported.originalFilenameReads == 0)
+
+        let missing = FilenameResourceStub(supportsFilename: false, filename: "MustNotBeRead.HEIC")
+        #expect(LivePhotoResources.filename(for: missing) == "Original.HEIC")
+        #expect(missing.filenameReads == 0)
+        #expect(missing.originalFilenameReads == 1)
+
+        for value: String? in [nil, ""] {
+            let empty = FilenameResourceStub(supportsFilename: true, filename: value)
+            #expect(LivePhotoResources.filename(for: empty) == "Original.HEIC")
+            #expect(empty.filenameReads == 1)
+            #expect(empty.originalFilenameReads == 1)
+        }
+    }
+
+    @Test("Library exports retain original filenames and bytes for still and Live photos",
+          arguments: [false, true])
+    @MainActor
+    func libraryResourceFilenames(isLive: Bool) async throws {
+        let photo: URL
+        let movie: URL?
+        if isLive {
+            let identifier = UUID().uuidString
+            photo = try makeLiveStill(identifier: identifier)
+            movie = try await makeLiveMovie(identifier: identifier, directory: photo.deletingLastPathComponent())
+        } else {
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            photo = directory.appendingPathComponent("TemporaryResource.png")
+            let png = try #require(Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="))
+            try png.write(to: photo)
+            movie = nil
+        }
+        let filename = "Original_\(UUID().uuidString).\(isLive ? "JPG" : "PNG")"
+        let originalPhoto = try Data(contentsOf: photo)
+        let originalMovie = try movie.map { try Data(contentsOf: $0) }
+        let saved = try await PhotoLibraryWriter.save(outputURL: photo, outputFilename: filename,
+            replacingOriginal: false, assetIdentifier: nil, pairedVideoURL: movie)
+        let savedID = try #require(saved.savedAssetIdentifier)
+        for forConversion in [false, true] {
+            let imported = try await PhotoAssetSource.load(identifier: savedID, forConversion: forConversion)
+            #expect(imported.originalFilename == filename)
+            #expect(imported.url.lastPathComponent == filename)
+            #expect(try Data(contentsOf: imported.url) == originalPhoto)
+            if let originalMovie {
+                let importedMovie = try #require(imported.pairedVideoURL)
+                #expect(importedMovie.lastPathComponent == URL(fileURLWithPath: filename)
+                    .deletingPathExtension().lastPathComponent + ".MOV")
+                #expect(try Data(contentsOf: importedMovie) == originalMovie)
+            } else {
+                #expect(imported.pairedVideoURL == nil)
+            }
+        }
+        // Keep only this generated fixture; Photos deletion requires confirmation.
+    }
+
     @Test("Inspection preserves the filename supplied by the photo picker")
     @MainActor
     func namedPhotoProvider() async throws {
@@ -779,5 +841,36 @@ struct StylePortTests {
 
         #expect(result.outputURL == url)
         #expect(!result.replacedOriginal)
+    }
+}
+
+@available(iOS 27.0, *)
+nonisolated private final class FilenameResourceStub: PHAssetResource {
+    private let supportsFilename: Bool
+    private let suppliedFilename: String?
+    private(set) var filenameReads = 0
+    private(set) var originalFilenameReads = 0
+
+    init(supportsFilename: Bool, filename: String?) {
+        self.supportsFilename = supportsFilename
+        suppliedFilename = filename
+        super.init()
+    }
+
+    override func responds(to selector: Selector!) -> Bool {
+        if selector == #selector(getter: PHAssetResource.filename) {
+            return supportsFilename
+        }
+        return super.responds(to: selector)
+    }
+
+    override var filename: String? {
+        filenameReads += 1
+        return suppliedFilename
+    }
+
+    override var originalFilename: String {
+        originalFilenameReads += 1
+        return "Original.HEIC"
     }
 }

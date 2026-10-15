@@ -34,7 +34,7 @@ struct SettingsView: View {
             }
 
             Section(text("关于", "About")) {
-                LabeledContent(text("过片", "StylePort"), value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.3")
+                LabeledContent(text("过片", "StylePort"), value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.4")
             }
         }
         .navigationTitle(text("设置", "Settings"))

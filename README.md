@@ -16,6 +16,10 @@ StylePort is an iOS tool that adds Photographic Styles 3 editing data to compati
 
 ## 更新日志
 
+### 0.0.4
+
+- 修复部分系统导入照片时因读取文件名导致闪退的问题。
+
 ### 0.0.3
 
 - 修复编辑过摄影风格 2 的照片被跳过的问题，保留已有滤镜和 Live Photo。

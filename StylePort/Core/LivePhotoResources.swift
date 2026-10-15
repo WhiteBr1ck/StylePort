@@ -146,10 +146,19 @@ nonisolated enum LivePhotoResources {
         return original
     }
 
+    static func filename(for resource: PHAssetResource) -> String {
+        // Check the actual object as well as SDK availability: some runtimes
+        // report iOS 27 but do not implement this getter.
+        if #available(iOS 27.0, *),
+           resource.responds(to: #selector(getter: PHAssetResource.filename)),
+           let filename = resource.filename, !filename.isEmpty {
+            return filename
+        }
+        return resource.originalFilename
+    }
+
     private static func write(_ resource: PHAssetResource, directory: URL) async throws -> URL {
-        let filename: String
-        if #available(iOS 27.0, *) { filename = resource.filename ?? resource.originalFilename }
-        else { filename = resource.originalFilename }
+        let filename = filename(for: resource)
         let destination = directory.appendingPathComponent(URL(fileURLWithPath: filename).lastPathComponent)
         let options = PHAssetResourceRequestOptions()
         options.isNetworkAccessAllowed = true
